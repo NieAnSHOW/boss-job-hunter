@@ -1,0 +1,11 @@
+{
+  "name": "boss-job-hunter-skills",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.20.0"
+  }
+}

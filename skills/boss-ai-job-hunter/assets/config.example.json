@@ -1,0 +1,31 @@
+{
+  "site": "https://www.zhipin.com",
+  "spaceId": null,
+  "spaceName": "BOSS job hunter",
+  "city": { "name": "广州", "code": "101280100" },
+  "companyScale": "302",
+  "companyScaleLabel": "20-99人",
+  "salaryMinK": 11,
+  "queries": ["AI 前端", "AI 全栈", "前端", "全栈"],
+  "titleRequireAny": ["ai", "人工智能", "大模型", "llm", "aigc", "智能体", "agent"],
+  "titleRoleAny": ["前端", "全栈", "开发", "工程师", "frontend", "web"],
+  "titleRejectAny": ["销售", "标注", "短剧", "讲师", "算法", "java", "测试", "qa"],
+  "titleWeights": [
+    { "label": "AI方向", "any": ["ai", "人工智能", "大模型", "llm", "智能体", "agent"], "weight": 20 },
+    { "label": "前端与全栈", "any": ["前端", "全栈", "frontend", "web"], "weight": 10 }
+  ],
+  "descGroups": [
+    { "label": "AI能力", "any": ["ai", "大模型", "llm", "rag", "agent", "智能体", "aigc", "提示词", "langchain"], "weight": 8, "cap": 40 },
+    { "label": "前端栈", "any": ["vue", "react", "typescript", "javascript", "uni-app", "小程序"], "weight": 5, "cap": 20 },
+    { "label": "全栈后端", "any": ["node.js", "nodejs", "python", "数据库", "postgresql", "mysql"], "weight": 3, "cap": 12 },
+    { "label": "工程交付", "any": ["工程化", "性能优化", "自动化测试", "ci/cd", "产品落地"], "weight": 3, "cap": 12 }
+  ],
+  "descNegative": { "any": ["外包", "驻场", "销售指标", "电话销售"], "weight": -10, "cap": -30 },
+  "minGreetScore": 50,
+  "autoGreet": false,
+  "maxGreetPerRun": 8,
+  "greetDelaySec": [25, 45],
+  "scrollsPerQuery": 2,
+  "maxDetailChecks": 30,
+  "detailDelayMs": [1200, 2400]
+}

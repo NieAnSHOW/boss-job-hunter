@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+.agents/
+.codex/
+skills-lock.json
+.boss-job-hunter/
+coverage/
