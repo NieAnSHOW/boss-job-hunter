@@ -5,12 +5,24 @@
 
 const fs = await import("node:fs/promises");
 const os = await import("node:os");
+const { randomUUID } = await import("node:crypto");
 
 const DIR = process.env.BOSS_JOB_HUNTER_HOME || `${os.homedir()}/.boss-job-hunter`;
 const cfg = JSON.parse(await fs.readFile(`${DIR}/config.json`, "utf8"));
+try {
+  await fs.access(`${DIR}/greet.lock`);
+  throw new Error("GREET_IN_PROGRESS: 请等待当前沟通批次结束后再采集");
+} catch (error) { if (error.code !== "ENOENT") throw error; }
+// A new collection cannot reuse the user's review or approval from an older list.
+await fs.rm(`${DIR}/review.json`, { force: true });
+await fs.rm(`${DIR}/selection.json`, { force: true });
 const getTask = async (fsMod, dir, cfgObj) => {
   if (cfgObj.spaceId) {
-    try { return await taskSpace(cfgObj.spaceId); } catch { /* 空间已结束，回退到按名字重建 */ }
+    try { return await taskSpace(cfgObj.spaceId); }
+    catch (error) {
+      if (/Control of this task space is with the user/i.test(String(error.message || error))) throw error;
+      // 空间已结束，回退到按名字重建。
+    }
   }
   const t = await taskSpace(cfgObj.spaceName);
   if (t.spaceId !== cfgObj.spaceId) {
@@ -202,7 +214,7 @@ try {
       try {
         await page.click(`a.job-name[href="${job.href}"]`, { label: "open job detail" });
         await page.waitForTimeout(rnd(...(cfg.detailDelayMs ?? [1200, 2400])));
-        const panel = await page.evaluate(() => {
+        const readPanel = () => page.evaluate(() => {
           const c = document.querySelector(".job-detail-container");
           if (!c) return null;
           const decode = (s) => [...(s || "")].map((ch) => {
@@ -219,10 +231,11 @@ try {
             chatDone: /is-disabled/.test(c.querySelector(".op-btn-chat")?.className || "") || /继续沟通/.test(c.querySelector(".op-btn-chat")?.textContent || ""),
           };
         });
+        let panel = await readPanel();
         if (!panel || panel.title.replace(/\s/g, "") !== job.title.replace(/\s/g, "")) {
           await page.waitForTimeout(1200);
-          const retry = await page.evaluate(() => document.querySelector(".job-detail-container .job-name")?.textContent.trim() || "");
-          if (retry.replace(/\s/g, "") !== job.title.replace(/\s/g, "")) throw new Error("detail mismatch");
+          panel = await readPanel();
+          if (!panel || panel.title.replace(/\s/g, "") !== job.title.replace(/\s/g, "")) throw new Error("detail mismatch");
         }
         const scored = scoreJob(job.title, panel?.desc || "");
         const eligible = job.titleOk || scored.aiHits >= 2;
@@ -248,7 +261,11 @@ try {
   const all = [...jobs.values()].map((j) => ({
     ...j,
     ...(j.score === undefined ? { score: null, action: j.prefilter ? "unchecked" : "skip" } : {}),
-  }));
+  })).sort((a, b) => Number(b.prefilter) - Number(a.prefilter)
+    || (b.score ?? -1) - (a.score ?? -1)
+    || (b.salary?.min ?? -1) - (a.salary?.min ?? -1)
+    || a.jobId.localeCompare(b.jobId))
+    .map((job, i) => ({ ...job, reviewIndex: i + 1 }));
   const ranked = all
     .filter((j) => j.prefilter)
     .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
@@ -260,23 +277,25 @@ try {
     "",
     "| # | 分数 | 职位 | 薪资 | 公司 | 地点 | 匹配点 | 状态 |",
     "|---|---|---|---|---|---|---|---|",
-    ...ranked.map((j, i) =>
-      `| ${i + 1} | ${j.score ?? "-"} | [${j.title}](${cfg.site}${j.href}) | ${j.salary?.text || ""} | ${j.company} | ${j.area || cfg.city.name} | ${(j.hits || []).slice(0, 6).join("/") || "-"} | ${j.alreadyGreeted ? "已沟通" : j.action} |`
+    ...ranked.map((j) =>
+      `| ${j.reviewIndex} | ${j.score ?? "-"} | [${j.title}](${cfg.site}${j.href}) | ${j.salary?.text || ""} | ${j.company} | ${j.area || cfg.city.name} | ${(j.hits || []).slice(0, 6).join("/") || "-"} | ${j.alreadyGreeted ? "已沟通" : j.action} |`
     ),
     "",
   ].join("\n");
 
-  await fs.writeFile(`${DIR}/candidates.json`, JSON.stringify({ generatedAt: startedAt, config: { city: cfg.city, scale: cfg.companyScaleLabel, salaryMinK: cfg.salaryMinK }, jobs: all }, null, 2));
+  const collectionId = randomUUID();
+  await fs.writeFile(`${DIR}/candidates.json`, JSON.stringify({ collectionId, generatedAt: startedAt, config: { city: cfg.city, scale: cfg.companyScaleLabel, salaryMinK: cfg.salaryMinK }, jobs: all }, null, 2));
   await fs.writeFile(`${DIR}/report.md`, report);
 
   console.log(JSON.stringify({
     ok: true,
+    collectionId,
     spaceId: task.spaceId,
     collected: all.length,
     prefiltered: ranked.length,
     detailChecks,
     greetable: ranked.filter((j) => j.action === "greet").length,
-    top: ranked.slice(0, 15).map((j) => ({ score: j.score, title: j.title, salary: j.salary?.text, company: j.company, action: j.action, greeted: j.alreadyGreeted, hits: (j.hits || []).slice(0, 5) })),
+    top: ranked.slice(0, 15).map((j) => ({ reviewIndex: j.reviewIndex, score: j.score, title: j.title, salary: j.salary?.text, company: j.company, action: j.action, greeted: j.alreadyGreeted, hits: (j.hits || []).slice(0, 5) })),
     report: `${DIR}/report.md`,
   }, null, 2));
 } catch (err) {

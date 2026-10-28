@@ -1,0 +1,11 @@
+{
+  "name": "boss-ai-job-hunter-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "exceljs": "4.4.0"
+  },
+  "engines": {
+    "node": ">=22.20.0"
+  }
+}

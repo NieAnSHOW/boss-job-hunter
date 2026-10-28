@@ -22,7 +22,6 @@
   ],
   "descNegative": { "any": ["外包", "驻场", "销售指标", "电话销售"], "weight": -10, "cap": -30 },
   "minGreetScore": 50,
-  "autoGreet": false,
   "maxGreetPerRun": 8,
   "greetDelaySec": [25, 45],
   "scrollsPerQuery": 2,

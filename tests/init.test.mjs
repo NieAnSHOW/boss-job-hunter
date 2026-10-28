@@ -28,7 +28,7 @@ test("initializes a usable config outside the repository working directory", asy
   const result = run(["--data-dir", data], { cwd: dir });
   assert.equal(result.created, true);
   const cfg = JSON.parse(await readFile(path.join(data, "config.json"), "utf8"));
-  assert.equal(cfg.autoGreet, false);
+  assert.equal(Object.hasOwn(cfg, "autoGreet"), false);
   assert.equal(cfg.spaceId, null);
   assert.equal(typeof cfg.spaceName, "string");
   assert.equal(cfg.site, "https://www.zhipin.com");

@@ -26,9 +26,9 @@
 | `titleWeights` | 标题加分分组，每组包含 `label`、`any` 和 `weight`；命中一组加一次 |
 | `descGroups` | JD 加分分组，每组包含 `label`、`any`、`weight`、`cap`；按命中词数计分并封顶 |
 | `descNegative` | JD 扣分项，包含 `any`、负数 `weight` 和负数 `cap` |
-| `minGreetScore` | 进入可沟通队列的最低分，默认 50 |
+| `minGreetScore` | 标记为推荐岗位的分数，默认 50；不代表用户选择或发送权限 |
 
-总分限制在 0-100。`descGroups` 中的 `AI能力` 标签参与 AI 词命中计数，修改词表时保留此标签。低于沟通阈值但达到 35 分的项标为 `backup`，其余为 `skip`。
+总分限制在 0-100。`descGroups` 中的 `AI能力` 标签参与 AI 词命中计数，修改词表时保留此标签。达到推荐阈值的项内部标为 `greet`，低于阈值但达到 35 分的项标为 `backup`，其余为 `skip`。这些标记仅用于排序和推荐；只要通过硬条件且详情已核验，没有明确淘汰原因，用户也可以选择低分岗位。
 
 模板使用通用技术词，分数表示关键词匹配度。结合用户提供的简历调整词表和权重后，才能将其作为该用户的匹配依据。
 
@@ -41,17 +41,40 @@
 | `scrollsPerQuery` | 每个搜索词的滚动次数，默认 2 |
 | `maxDetailChecks` | 一次采集最多检查的详情数，默认 30 |
 | `detailDelayMs` | 详情读取前随机等待范围，单位毫秒 |
-| `autoGreet` | Agent 工作流是否自动进入沟通阶段，默认 `false`；设为 `true` 前必须有用户授权 |
 | `maxGreetPerRun` | 单次最多沟通数量，默认 8 |
 | `greetDelaySec` | 沟通间随机等待范围，默认 `[25, 45]` 秒 |
 
-`autoGreet` 是 Agent 的工作流开关，脚本本身不读取该字段。用户未授权时不能执行 `greet.mjs`；用户单次确认后可执行，无需将配置改成永久自动沟通。
+`autoGreet` 已废弃，新配置不再包含此项。旧配置即使保留 `autoGreet:true` 也不会授予任何沟通权限。每次收集后必须交付当前 Excel，再由用户选编号或选择全部。
+
+## Excel 与选择记录
+
+首次安装或升级后在实际技能目录安装导出依赖：
+
+```bash
+npm ci --prefix "$SKILL" --omit=dev --ignore-scripts
+```
+
+采集后运行 `node "$SKILL/scripts/export.mjs"`，将最新候选导出为真正的 `candidates.xlsx`。Excel 含全部收集岗位与稳定编号、链接、薪资、公司、地点、匹配点、JD、可选择状态及原因。评分只是建议；未通过硬条件、待核验和已沟通项保留用于查看，但不能发送。
+
+交付 Excel 后，根据用户对当前清单的明确选择运行以下命令之一：
+
+```bash
+node "$SKILL/scripts/select.mjs" --ids 1,3,8
+node "$SKILL/scripts/select.mjs" --all
+```
+
+不能在用户选择前运行命令。`--all` 仅选择当前清单中全部可选择岗位，包括低分项。`select.mjs` 写入绑定 `collectionId` 的 `selection.json`；`greet.mjs` 在任何浏览器操作前验证该记录及导出记录。新的采集生成新的 `collectionId`，旧选择失效。
+
+一次最多按 `maxGreetPerRun` 处理一批。执行前从选择记录移除本批岗位，以免中断后静默重发；其余岗位可在同一授权范围内分批执行。失败或结果不确定的岗位需要用户重新选择才重试。“全部”不扩大单批上限，也不授予后续新清单的权限。
 
 ## 数据与升级
 
 默认数据目录为 `~/.boss-job-hunter/`。需要隔离多个配置时，在初始化、采集和沟通命令前统一设置绝对路径环境变量 `BOSS_JOB_HUNTER_HOME`；本文其余数据路径均相对于该目录。`init.mjs --data-dir <directory>` 仅影响本次初始化，不会替后续脚本设置环境变量。
 
-- `candidates.json`、`report.md`：最近一次采集结果与排序报告，会在下一次采集时更新。
+- `candidates.json`、`report.md`：最近一次采集结果与排序报告，含 `collectionId` 和 `reviewIndex` 固定编号，下一次采集会更新。
+- `candidates.xlsx`：最近一次成功导出的 Excel；每次采集后都必须重新导出再交付。
+- `review.json`：Excel 成功导出的批次记录，必须对应当前候选批次。
+- `selection.json`：用户对当前清单明确选择的岗位 ID 和剩余待执行范围；不是永久自动沟通开关。
 - `state.json`：已沟通记录，用于防止重复发送；不要为了重跑而删除。
 - `greet-report.md`：最近一次沟通报告。
 
